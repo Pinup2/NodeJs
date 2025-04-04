@@ -1,101 +1,34 @@
-const express = require('express');
-const db = require('../db/db');
-const router = express.Router();
+const { body, validationResult } = require('express-validator');
 
-const {
+const validateUsername = body('username')
+  .isString()
+  .notEmpty()
+  .withMessage('Username is required and must be a non-empty string');
+
+const validateExercise = [
+  body('description')
+    .isString()
+    .notEmpty()
+    .withMessage('Description is required'),
+  body('duration')
+    .isInt({ min: 1 })
+    .withMessage('Duration must be a positive integer'),
+  body('date')
+    .optional()
+    .isISO8601()
+    .withMessage('Date must be in YYYY-MM-DD format'),
+];
+
+const handleValidation = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+module.exports = {
   validateUsername,
   validateExercise,
   handleValidation,
-} = require('../middlewares/validation');
-
-router.post('/api/users', validateUsername, handleValidation, (req, res) => {
-  const { username } = req.body;
-  const query = 'INSERT INTO users (username) VALUES (?)';
-
-  db.run(query, [username], function (err) {
-    if (err) {
-      console.error('ERROR inserting user:', err);
-      if (err.message.includes('UNIQUE')) {
-        return res.status(400).json({ error: 'Username must be unique' });
-      }
-      return res.status(500).json({ error: 'Database error' });
-    }
-    res.json({ username, _id: this.lastID });
-  });
-});
-
-router.post('/api/users/:_id/exercises', validateExercise, handleValidation, (req, res) => {
-  const userId = req.params._id;
-  const { description, duration, date } = req.body;
-  const parsedDuration = parseInt(duration);
-  const exerciseDate = date ? new Date(date) : new Date();
-  const formattedDate = exerciseDate.toDateString();
-
-  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    db.run(
-      'INSERT INTO exercises (user_id, description, duration, date) VALUES (?, ?, ?, ?)',
-      [userId, description, parsedDuration, formattedDate],
-      function (err) {
-        if (err) return res.status(500).json({ error: 'Database error' });
-
-        res.json({
-          _id: userId,
-          username: user.username,
-          description,
-          duration: parsedDuration,
-          date: formattedDate,
-        });
-      }
-    );
-  });
-});
-
-router.get('/api/users/:_id/logs', (req, res) => {
-  const userId = req.params._id;
-  const { from, to, limit } = req.query;
-
-  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let query = 'SELECT id, description, duration, date FROM exercises WHERE user_id = ?';
-    const params = [userId];
-
-    if (from) {
-      query += ' AND date >= ?';
-      params.push(new Date(from).toDateString());
-    }
-
-    if (to) {
-      query += ' AND date <= ?';
-      params.push(new Date(to).toDateString());
-    }
-
-    query += ' ORDER BY date DESC';
-
-    if (limit) {
-      query += ' LIMIT ?';
-      params.push(parseInt(limit));
-    }
-
-    db.all(query, params, (err, logs) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-
-      res.json({
-        _id: userId,
-        username: user.username,
-        count: logs.length,
-        log: logs.map(e => ({
-          description: e.description,
-          duration: e.duration,
-          date: e.date,
-        })),
-      });
-    });
-  });
-});
-
-module.exports = router;
+};
