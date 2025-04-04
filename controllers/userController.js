@@ -1,12 +1,12 @@
 const express = require('express');
-const db = require('./db/db');
+const db = require('../db/db.js');
 const router = express.Router();
 
 const {
   validateUsername,
   validateExercise,
   handleValidation,
-} = require('./middlewares/validation');
+} = require('../middlewares/validation');
 
 router.post('/api/users', validateUsername, handleValidation, (req, res) => {
   const { username } = req.body;
