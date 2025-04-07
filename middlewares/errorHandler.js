@@ -28,7 +28,7 @@ router.post('/api/users/:_id/exercises', validateExercise, handleValidation, (re
   const userId = req.params._id;
   const { description, duration, date } = req.body;
   const parsedDuration = parseInt(duration);
-  const exerciseDate = date ? new Date(date) : new Date();
+  const exerciseDate = date && !isNaN(Date.parse(date)) ? new Date(date) : new Date();
   const formattedDate = exerciseDate.toDateString();
 
   db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
@@ -61,34 +61,28 @@ router.get('/api/users/:_id/logs', (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    let query = 'SELECT id, description, duration, date FROM exercises WHERE user_id = ?';
-    const params = [userId];
-
-    if (from) {
-      query += ' AND date >= ?';
-      params.push(new Date(from).toDateString());
-    }
-
-    if (to) {
-      query += ' AND date <= ?';
-      params.push(new Date(to).toDateString());
-    }
-
-    query += ' ORDER BY date DESC';
-
-    if (limit) {
-      query += ' LIMIT ?';
-      params.push(parseInt(limit));
-    }
-
-    db.all(query, params, (err, logs) => {
+    db.all('SELECT id, description, duration, date FROM exercises WHERE user_id = ?', [userId], (err, logs) => {
       if (err) return res.status(500).json({ error: 'Database error' });
+
+      logs.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      const fromDate = from ? new Date(from) : null;
+      const toDate = to ? new Date(to) : null;
+
+      const filtered = logs.filter(log => {
+        const logDate = new Date(log.date);
+        return (!fromDate || logDate >= fromDate) && (!toDate || logDate <= toDate);
+      });
+
+      const totalCount = filtered.length;
+
+      const limited = limit ? filtered.slice(0, parseInt(limit)) : filtered;
 
       res.json({
         _id: userId,
         username: user.username,
-        count: logs.length,
-        log: logs.map(e => ({
+        count: totalCount,
+        log: limited.map(e => ({
           description: e.description,
           duration: e.duration,
           date: e.date,
