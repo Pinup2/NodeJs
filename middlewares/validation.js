@@ -14,9 +14,12 @@ const validateExercise = [
     .isInt({ min: 1 })
     .withMessage('Duration must be a positive integer'),
   body('date')
-    .optional()
-    .isISO8601()
-    .withMessage('Date must be in YYYY-MM-DD format'),
+    .custom((value, { req }) => {
+      if (!value) return true;
+      const parsed = Date.parse(value);
+      if (isNaN(parsed)) throw new Error('Date must be in YYYY-MM-DD format');
+      return true;
+    }),
 ];
 
 const handleValidation = (req, res, next) => {

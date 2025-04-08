@@ -66,9 +66,9 @@ router.get('/api/users/:_id/logs', (req, res) => {
 
       logs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      const fromDate = from ? new Date(from) : null;
-      const toDate = to ? new Date(to) : null;
-
+      const fromDate = from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : null;
+      const toDate = to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : null;
+      console.log({ fromDate, toDate, allDates: logs.map(e => e.date) });
       const filtered = logs.filter(log => {
         const logDate = new Date(log.date);
         return (!fromDate || logDate >= fromDate) && (!toDate || logDate <= toDate);
